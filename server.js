@@ -54,6 +54,7 @@ console.log('--- SERVER STARTUP ---');
 console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 console.log(`Port Configured: ${PORT}`);
 console.log(`Current Working Directory: ${process.cwd()}`);
+console.log(`Database Host Check: ${process.env.DATABASE_URL ? process.env.DATABASE_URL.split('@')[1].split(':')[0] : 'NOT SET'}`);
 
 // Database Connection Check
 prisma.$connect()
