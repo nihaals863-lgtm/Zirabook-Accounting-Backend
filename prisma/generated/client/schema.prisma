@@ -1,10 +1,12 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 generator client_custom {
-  provider = "prisma-client-js"
-  output   = "./generated/client"
+  provider      = "prisma-client-js"
+  output        = "./generated/client"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -427,6 +429,16 @@ model invoice {
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @default(now()) @updatedAt
   deliveryChallanId Int?
+  billingName       String?
+  billingAddress    String?          @db.Text
+  billingCity       String?
+  billingState      String?
+  billingZipCode    String?
+  shippingName      String?
+  shippingAddress   String?          @db.Text
+  shippingCity      String?
+  shippingState     String?
+  shippingZipCode   String?
   company           company          @relation(fields: [companyId], references: [id], onDelete: Cascade, map: "Invoice_companyId_fkey")
   customer          customer         @relation(fields: [customerId], references: [id], map: "Invoice_customerId_fkey")
   deliverychallan   deliverychallan? @relation(fields: [deliveryChallanId], references: [id], map: "Invoice_deliveryChallanId_fkey")
@@ -508,6 +520,8 @@ model ledger {
   transaction_transaction_debitLedgerIdToledger  transaction[]    @relation("transaction_debitLedgerIdToledger")
   voucher_paidFromLedger                         voucher[]        @relation("voucher_paidFromLedger")
   voucher_paidToLedger                           voucher[]        @relation("voucher_paidToLedger")
+  receipt_CashBankAccount                        receipt[]        @relation("Receipt_CashBankAccount")
+  payment_CashBankAccount                        payment[]        @relation("Payment_CashBankAccount")
 
   @@unique([companyId, name], map: "Ledger_companyId_name_key")
   @@index([groupId], map: "Ledger_groupId_fkey")
@@ -530,26 +544,29 @@ model passwordrequest {
 }
 
 model payment {
-  id              Int                 @id @default(autoincrement())
-  paymentNumber   String
-  date            DateTime            @default(now())
-  vendorId        Int
-  purchaseBillId  Int?
-  amount          Float
-  paymentMode     payment_paymentMode
-  referenceNumber String?
-  companyId       Int
-  notes           String?             @db.Text
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @default(now()) @updatedAt
-  company         company             @relation(fields: [companyId], references: [id], onDelete: Cascade, map: "Payment_companyId_fkey")
-  purchasebill    purchasebill?       @relation(fields: [purchaseBillId], references: [id], map: "Payment_purchaseBillId_fkey")
-  vendor          vendor              @relation(fields: [vendorId], references: [id], map: "Payment_vendorId_fkey")
-  transaction     transaction[]
+  id                Int                 @id @default(autoincrement())
+  paymentNumber     String
+  date              DateTime            @default(now())
+  vendorId          Int
+  purchaseBillId    Int?
+  amount            Float
+  paymentMode       payment_paymentMode
+  referenceNumber   String?
+  companyId         Int
+  cashBankAccountId Int?
+  notes             String?             @db.Text
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @default(now()) @updatedAt
+  company           company             @relation(fields: [companyId], references: [id], onDelete: Cascade, map: "Payment_companyId_fkey")
+  purchasebill      purchasebill?       @relation(fields: [purchaseBillId], references: [id], map: "Payment_purchaseBillId_fkey")
+  vendor            vendor              @relation(fields: [vendorId], references: [id], map: "Payment_vendorId_fkey")
+  bankLedger        ledger?             @relation("Payment_CashBankAccount", fields: [cashBankAccountId], references: [id], map: "Payment_cashBankAccountId_fkey")
+  transaction       transaction[]
 
   @@unique([companyId, paymentNumber], map: "Payment_companyId_paymentNumber_key")
   @@index([purchaseBillId], map: "Payment_purchaseBillId_fkey")
   @@index([vendorId], map: "Payment_vendorId_fkey")
+  @@index([cashBankAccountId], map: "Payment_cashBankAccountId_fkey")
 }
 
 model paymentrecord {
@@ -588,6 +605,9 @@ model planrequest {
   id           Int      @id @default(autoincrement())
   companyName  String
   email        String
+  phone        String?
+  address      String?  @db.Text
+  logo         String?  @db.LongText
   planId       Int?
   planName     String?
   billingCycle String   @default("Monthly")
@@ -889,22 +909,24 @@ model purchasereturnitem {
 }
 
 model receipt {
-  id              Int                 @id @default(autoincrement())
-  receiptNumber   String
-  date            DateTime            @default(now())
-  customerId      Int
-  invoiceId       Int?
-  amount          Float
-  paymentMode     receipt_paymentMode
-  referenceNumber String?
-  companyId       Int
-  notes           String?             @db.Text
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @default(now()) @updatedAt
-  company         company             @relation(fields: [companyId], references: [id], onDelete: Cascade, map: "Receipt_companyId_fkey")
-  customer        customer            @relation(fields: [customerId], references: [id], map: "Receipt_customerId_fkey")
-  invoice         invoice?            @relation(fields: [invoiceId], references: [id], map: "Receipt_invoiceId_fkey")
-  transaction     transaction[]
+  id                Int                 @id @default(autoincrement())
+  receiptNumber     String
+  date              DateTime            @default(now())
+  customerId        Int
+  invoiceId         Int?
+  amount            Float
+  paymentMode       receipt_paymentMode
+  referenceNumber   String?
+  companyId         Int
+  cashBankAccountId Int?
+  notes             String?             @db.Text
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @default(now()) @updatedAt
+  company           company             @relation(fields: [companyId], references: [id], onDelete: Cascade, map: "Receipt_companyId_fkey")
+  customer          customer            @relation(fields: [customerId], references: [id], map: "Receipt_customerId_fkey")
+  invoice           invoice?            @relation(fields: [invoiceId], references: [id], map: "Receipt_invoiceId_fkey")
+  cashBankAccount   ledger?             @relation("Receipt_CashBankAccount", fields: [cashBankAccountId], references: [id], map: "Receipt_cashBankAccountId_fkey")
+  transaction       transaction[]
 
   @@unique([companyId, receiptNumber], map: "Receipt_companyId_receiptNumber_key")
   @@index([customerId], map: "Receipt_customerId_fkey")
@@ -929,6 +951,16 @@ model salesorder {
   updatedAt       DateTime          @default(now()) @updatedAt
   deliverychallan deliverychallan[]
   invoice         invoice[]
+  billingName     String?
+  billingAddress  String?           @db.Text
+  billingCity     String?
+  billingState    String?
+  billingZipCode  String?
+  shippingName    String?
+  shippingAddress String?           @db.Text
+  shippingCity    String?
+  shippingState   String?
+  shippingZipCode String?
   company         company           @relation(fields: [companyId], references: [id], onDelete: Cascade, map: "SalesOrder_companyId_fkey")
   customer        customer          @relation(fields: [customerId], references: [id], map: "SalesOrder_customerId_fkey")
   salesquotation  salesquotation?   @relation(fields: [quotationId], references: [id], map: "SalesOrder_quotationId_fkey")
@@ -979,6 +1011,16 @@ model salesquotation {
   createdAt          DateTime              @default(now())
   updatedAt          DateTime              @default(now()) @updatedAt
   salesorder         salesorder?
+  billingName        String?
+  billingAddress     String?               @db.Text
+  billingCity        String?
+  billingState       String?
+  billingZipCode     String?
+  shippingName       String?
+  shippingAddress    String?               @db.Text
+  shippingCity       String?
+  shippingState      String?
+  shippingZipCode    String?
   company            company               @relation(fields: [companyId], references: [id], onDelete: Cascade, map: "SalesQuotation_companyId_fkey")
   customer           customer              @relation(fields: [customerId], references: [id], map: "SalesQuotation_customerId_fkey")
   salesquotationitem salesquotationitem[]
