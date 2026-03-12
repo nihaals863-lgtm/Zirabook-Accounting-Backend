@@ -82,6 +82,8 @@ process.on('unhandledRejection', (err) => {
 app.use(cors({
     origin: [
         'https://accounting-news.kiaantechnology.com',
+        'https://zirakbook-accounting.wenbear.online',
+        'https://zirakbook-accounting.wenbear.online/',
         'https://accounting-news.kiaantechnology.com/',
         'http://localhost:5173'
     ],
