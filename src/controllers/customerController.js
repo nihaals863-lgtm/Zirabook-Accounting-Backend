@@ -1,5 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../config/prisma');
 
 // Create Customer with Automatic Ledger Creation
 const createCustomer = async (req, res) => {
@@ -33,25 +32,44 @@ const createCustomer = async (req, res) => {
             });
         }
 
+        // Check if customer with same name/email already exists in the same company
+        const existingCustomer = await prisma.customer.findFirst({
+            where: {
+                companyId: companyId,
+                OR: [
+                    { name: customerData.name },
+                    { email: customerData.email && customerData.email !== '' ? customerData.email : undefined }
+                ].filter(Boolean)
+            }
+        });
+
+        if (existingCustomer) {
+            return res.status(409).json({
+                success: false,
+                message: 'A customer with this name or email already exists in this company.'
+            });
+        }
+
+        // Check if a ledger with same name already exists in this company
+        const existingLedger = await prisma.ledger.findFirst({
+            where: {
+                companyId: companyId,
+                name: customerData.name
+            }
+        });
+
+        if (existingLedger) {
+            return res.status(409).json({
+                success: false,
+                message: 'A ledger with this name already exists. Please use a unique name.'
+            });
+        }
+
         // Create Customer and Ledger in a transaction
         const result = await prisma.$transaction(async (tx) => {
-            // Create Ledger first
             const ledgerName = customerData.name;
-            const ledger = await tx.ledger.create({
-                data: {
-                    name: ledgerName,
-                    groupId: accountsReceivableSubGroup.groupId,
-                    subGroupId: accountsReceivableSubGroup.id,
-                    companyId: companyId,
-                    openingBalance: parseFloat(customerData.accountBalance) || 0,
-                    currentBalance: parseFloat(customerData.accountBalance) || 0,
-                    isControlAccount: false,
-                    isEnabled: true,
-                    description: `Customer Ledger for ${ledgerName}`
-                }
-            });
-
-            // Create Customer
+            
+            // Create Customer with nested Ledger
             const customer = await tx.customer.create({
                 data: {
                     name: customerData.name,
@@ -83,7 +101,7 @@ const createCustomer = async (req, res) => {
                     billingCountry: customerData.billingCountry,
                     billingZipCode: customerData.billingZipCode,
 
-                    // Shipping Address
+                    // Shipping Address (Legacy fields)
                     shippingSameAsBilling: customerData.shippingSameAsBilling || false,
                     shippingName: customerData.shippingName,
                     shippingPhone: customerData.shippingPhone,
@@ -94,17 +112,61 @@ const createCustomer = async (req, res) => {
                     shippingZipCode: customerData.shippingZipCode,
 
                     companyId: companyId,
-                    ledgerId: ledger.id
+                    
+                    // Link Ledger via nested create
+                    ledger: {
+                        create: {
+                            name: ledgerName,
+                            groupId: accountsReceivableSubGroup.groupId,
+                            subGroupId: accountsReceivableSubGroup.id,
+                            companyId: companyId,
+                            openingBalance: parseFloat(customerData.accountBalance) || 0,
+                            currentBalance: parseFloat(customerData.accountBalance) || 0,
+                            isControlAccount: false,
+                            isEnabled: true,
+                            description: `Customer Ledger for ${ledgerName}`
+                        }
+                    },
+
+                    // Multiple Shipping Addresses
+                    shippingaddress: {
+                        create: (customerData.shippingAddresses && Array.isArray(customerData.shippingAddresses)) ? customerData.shippingAddresses.map(addr => ({
+                            name: addr.name,
+                            phone: addr.phone,
+                            address: addr.address,
+                            city: addr.city,
+                            state: addr.state,
+                            country: addr.country,
+                            zipCode: addr.zipCode,
+                            isDefault: addr.isDefault || false
+                        })) : []
+                    }
+                },
+                include: {
+                    ledger: true
                 }
             });
 
-            // Update Ledger with customerId
-            await tx.ledger.update({
-                where: { id: ledger.id },
-                data: { customerId: customer.id }
+            // Update cross-references within the same transaction
+            const ledgerId = customer.ledger.id;
+            const customerId = customer.id;
+
+            // Use direct SQL or faster non-circular updates if possible? 
+            // In Prisma, we just do them sequentially but quickly.
+            await tx.customer.update({
+                where: { id: customerId },
+                data: { ledgerId: ledgerId }
             });
 
-            return { customer, ledger };
+            await tx.ledger.update({
+                where: { id: ledgerId },
+                data: { customerId: customerId }
+            });
+
+            return { customer: { ...customer, ledgerId }, ledger: { ...customer.ledger, customerId } };
+        }, {
+            timeout: 15000, // 15 seconds
+            maxWait: 5000
         });
 
         res.status(201).json({
@@ -136,6 +198,7 @@ const getAllCustomers = async (req, res) => {
             where: { companyId },
             include: {
                 ledger: true,
+                shippingaddress: true,
                 invoice: {
                     select: {
                         id: true,
@@ -184,7 +247,8 @@ const getCustomerById = async (req, res) => {
                         receipt: true
                     }
                 },
-                receipt: true
+                receipt: true,
+                shippingaddress: true
             }
         });
 
@@ -272,7 +336,22 @@ const updateCustomer = async (req, res) => {
                     shippingCity: customerData.shippingCity,
                     shippingState: customerData.shippingState,
                     shippingCountry: customerData.shippingCountry,
-                    shippingZipCode: customerData.shippingZipCode
+                    shippingZipCode: customerData.shippingZipCode,
+
+                    // Update Shipping Addresses
+                    shippingaddress: {
+                        deleteMany: {},
+                        create: (customerData.shippingAddresses && Array.isArray(customerData.shippingAddresses)) ? customerData.shippingAddresses.map(addr => ({
+                            name: addr.name,
+                            phone: addr.phone,
+                            address: addr.address,
+                            city: addr.city,
+                            state: addr.state,
+                            country: addr.country,
+                            zipCode: addr.zipCode,
+                            isDefault: addr.isDefault || false
+                        })) : []
+                    }
                 }
             });
 
@@ -289,6 +368,9 @@ const updateCustomer = async (req, res) => {
             }
 
             return customer;
+        }, {
+            maxWait: 5000,
+            timeout: 15000
         });
 
         res.status(200).json({
@@ -469,6 +551,9 @@ const deleteCustomer = async (req, res) => {
                     where: { id: customer.ledgerId }
                 });
             }
+        }, {
+            timeout: 15000,
+            maxWait: 5000
         });
 
         res.status(200).json({

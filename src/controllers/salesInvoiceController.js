@@ -4,7 +4,7 @@ const prisma = new PrismaClient();
 // Create Sales Invoice
 const createInvoice = async (req, res) => {
     try {
-        const { invoiceNumber, date, dueDate, customerId, salesOrderId, deliveryChallanId, items, notes, taxAmount } = req.body;
+        const { invoiceNumber, date, dueDate, customerId, salesOrderId, deliveryChallanId, items, notes, taxAmount, overallDiscount, overallDiscountType, billingName, billingAddress, billingCity, billingState, billingZipCode, billingCountry, shippingName, shippingAddress, shippingCity, shippingState, shippingZipCode, shippingCountry } = req.body;
         // Fallback to req.body.companyId if req.user is missing (custom frontend case)
         const companyId = req.user?.companyId || req.body.companyId;
 
@@ -96,7 +96,13 @@ const createInvoice = async (req, res) => {
         });
 
         const finalTax = parseFloat(taxAmount) || lineTaxSum;
-        const totalAmount = (subtotal - totalDiscount) + finalTax;
+        const baseTotal = (subtotal - totalDiscount) + finalTax;
+        let totalAmount = baseTotal;
+        if (overallDiscount && overallDiscountType === 'percentage') {
+            totalAmount = baseTotal - (baseTotal * overallDiscount / 100);
+        } else if (overallDiscount) {
+            totalAmount = baseTotal - overallDiscount;
+        }
 
         const result = await prisma.$transaction(async (tx) => {
             // A. Create Invoice
@@ -115,16 +121,20 @@ const createInvoice = async (req, res) => {
                     totalAmount,
                     balanceAmount: totalAmount,
                     notes,
+                    overallDiscount: parseFloat(overallDiscount) || 0,
+                    overallDiscountType: overallDiscountType || 'percentage',
                     billingName: req.body.billingName,
                     billingAddress: req.body.billingAddress,
                     billingCity: req.body.billingCity,
                     billingState: req.body.billingState,
-                    billingZipCode: req.body.billingZipCode,
-                    shippingName: req.body.shippingName,
-                    shippingAddress: req.body.shippingAddress,
-                    shippingCity: req.body.shippingCity,
-                    shippingState: req.body.shippingState,
-                    shippingZipCode: req.body.shippingZipCode,
+                    billingZipCode: billingZipCode,
+                    billingCountry: billingCountry,
+                    shippingName: shippingName,
+                    shippingAddress: shippingAddress,
+                    shippingCity: shippingCity,
+                    shippingState: shippingState,
+                    shippingZipCode: shippingZipCode,
+                    shippingCountry: shippingCountry,
                     invoiceitem: {
                         create: invoiceItems.map(i => ({
                             productId: i.productId,
@@ -381,7 +391,7 @@ const getInvoiceById = async (req, res) => {
 const updateInvoice = async (req, res) => {
     try {
         const { id } = req.params;
-        const { items, ...data } = req.body;
+        const { items, overallDiscount, overallDiscountType, billingName, billingAddress, billingCity, billingState, billingZipCode, billingCountry, shippingName, shippingAddress, shippingCity, shippingState, shippingZipCode, shippingCountry, ...data } = req.body;
         const companyId = req.user?.companyId || req.body.companyId;
 
         if (!companyId) {
@@ -440,7 +450,24 @@ const updateInvoice = async (req, res) => {
             });
 
             taxAmount = parseFloat(req.body.taxAmount) || lineTaxSum;
-            totalAmount = (subtotal - totalDiscount) + taxAmount;
+            const baseTotal = (subtotal - totalDiscount) + taxAmount;
+            totalAmount = baseTotal;
+            if (overallDiscount && overallDiscountType === 'percentage') {
+                totalAmount = baseTotal - (baseTotal * overallDiscount / 100);
+            } else if (overallDiscount) {
+                totalAmount = baseTotal - overallDiscount;
+            }
+        } else {
+            // Recalculate with overall discount if items didn't change but discount did
+            const baseTotal = (existingInvoice.subtotal - existingInvoice.discountAmount) + existingInvoice.taxAmount;
+            totalAmount = baseTotal;
+            const ovDiscount = overallDiscount !== undefined ? overallDiscount : existingInvoice.overallDiscount;
+            const ovType = overallDiscountType !== undefined ? overallDiscountType : existingInvoice.overallDiscountType;
+            if (ovDiscount && ovType === 'percentage') {
+                totalAmount = baseTotal - (baseTotal * ovDiscount / 100);
+            } else if (ovDiscount) {
+                totalAmount = baseTotal - ovDiscount;
+            }
         }
 
         // 3. Update Invoice
@@ -457,16 +484,20 @@ const updateInvoice = async (req, res) => {
                 taxAmount,
                 totalAmount,
                 balanceAmount: totalAmount - (existingInvoice.paidAmount || 0),
-                billingName: data.billingName,
-                billingAddress: data.billingAddress,
-                billingCity: data.billingCity,
-                billingState: data.billingState,
-                billingZipCode: data.billingZipCode,
-                shippingName: data.shippingName,
-                shippingAddress: data.shippingAddress,
-                shippingCity: data.shippingCity,
-                shippingState: data.shippingState,
-                shippingZipCode: data.shippingZipCode,
+                overallDiscount: parseFloat(overallDiscount) || 0,
+                overallDiscountType: overallDiscountType || 'percentage',
+                billingName: billingName,
+                billingAddress: billingAddress,
+                billingCity: billingCity,
+                billingState: billingState,
+                billingZipCode: billingZipCode,
+                billingCountry: billingCountry,
+                shippingName: shippingName,
+                shippingAddress: shippingAddress,
+                shippingCity: shippingCity,
+                shippingState: shippingState,
+                shippingZipCode: shippingZipCode,
+                shippingCountry: shippingCountry,
                 invoiceitem: items ? {
                     deleteMany: {},
                     create: invoiceItemsData

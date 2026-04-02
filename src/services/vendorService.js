@@ -70,6 +70,7 @@ const getVendors = async (companyId) => {
         const vendors = await prisma.vendor.findMany({
             where: { companyId },
             include: {
+                shippingaddress: true,
                 ledger: {
                     select: {
                         id: true,

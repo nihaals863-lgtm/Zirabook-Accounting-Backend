@@ -4,7 +4,7 @@ const prisma = new PrismaClient();
 // Create Purchase Bill (Financial Posting)
 const createBill = async (req, res) => {
     try {
-        const { billNumber, date, dueDate, vendorId, purchaseOrderId, grnId, items, notes, discountAmount, taxAmount, totalAmount } = req.body;
+        const { billNumber, date, dueDate, vendorId, purchaseOrderId, grnId, items, notes, discountAmount, taxAmount, totalAmount, billingName, billingAddress, billingCity, billingState, billingZipCode, billingCountry, shippingName, shippingAddress, shippingCity, shippingState, shippingZipCode, shippingCountry, overallDiscount, overallDiscountType } = req.body;
         const companyId = req.user?.companyId || req.query.companyId || req.body.companyId;
 
         if (!billNumber || !vendorId || !items || items.length === 0) {
@@ -40,6 +40,20 @@ const createBill = async (req, res) => {
                     balanceAmount: parseFloat(totalAmount),
                     status: 'UNPAID',
                     notes,
+                    billingName,
+                    billingAddress,
+                    billingCity,
+                    billingState,
+                    billingZipCode,
+                    billingCountry,
+                    shippingName,
+                    shippingAddress,
+                    shippingCity,
+                    shippingState,
+                    shippingZipCode,
+                    shippingCountry,
+                    overallDiscount: overallDiscount ? parseFloat(overallDiscount) : 0,
+                    overallDiscountType: overallDiscountType || 'percentage',
                     purchasebillitem: {
                         create: billItems
                     }
@@ -277,7 +291,7 @@ const deleteBill = async (req, res) => {
 const updateBill = async (req, res) => {
     try {
         const { id } = req.params;
-        const { notes, dueDate, items, totalAmount, taxAmount, discountAmount } = req.body;
+        const { notes, dueDate, items, totalAmount, taxAmount, discountAmount, billingName, billingAddress, billingCity, billingState, billingZipCode, billingCountry, shippingName, shippingAddress, shippingCity, shippingState, shippingZipCode, shippingCountry, overallDiscount, overallDiscountType } = req.body;
         const companyId = req.user?.companyId || req.query.companyId || req.body.companyId;
 
         const updated = await prisma.$transaction(async (tx) => {
@@ -317,7 +331,21 @@ const updateBill = async (req, res) => {
                     taxAmount: taxAmount ? parseFloat(taxAmount) : undefined,
                     discountAmount: discountAmount ? parseFloat(discountAmount) : undefined,
                     // If totalAmount changed, we might need to update balanceAmount too.
-                    balanceAmount: totalAmount ? parseFloat(totalAmount) : undefined
+                    balanceAmount: totalAmount ? parseFloat(totalAmount) : undefined,
+                    billingName,
+                    billingAddress,
+                    billingCity,
+                    billingState,
+                    billingZipCode,
+                    billingCountry,
+                    shippingName,
+                    shippingAddress,
+                    shippingCity,
+                    shippingState,
+                    shippingZipCode,
+                    shippingCountry,
+                    overallDiscount: overallDiscount ? parseFloat(overallDiscount) : undefined,
+                    overallDiscountType: overallDiscountType || undefined
                 },
                 include: {
                     purchasebillitem: {

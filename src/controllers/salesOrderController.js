@@ -4,7 +4,7 @@ const prisma = new PrismaClient();
 // Create Sales Order
 const createOrder = async (req, res) => {
     try {
-        const { orderNumber, date, expectedDate, customerId, items, notes, quotationId, billingName, billingAddress, shippingName, shippingAddress } = req.body;
+        const { orderNumber, date, expectedDate, customerId, items, notes, quotationId, billingName, billingAddress, billingCity, billingState, billingZipCode, billingCountry, shippingName, shippingAddress, shippingCity, shippingState, shippingZipCode, shippingCountry, overallDiscount, overallDiscountType } = req.body;
         const companyId = req.user?.companyId || req.query.companyId || req.body.companyId;
 
         if (!companyId) {
@@ -51,6 +51,14 @@ const createOrder = async (req, res) => {
             const company = await tx.company.findUnique({ where: { id: parseInt(companyId) } });
             const config = company.inventoryConfig || {};
 
+            const baseTotal = (subtotal - totalDiscount) + taxAmount;
+            let finalTotal = baseTotal;
+            if (overallDiscount && overallDiscountType === 'percentage') {
+                finalTotal = baseTotal - (baseTotal * overallDiscount / 100);
+            } else if (overallDiscount) {
+                finalTotal = baseTotal - overallDiscount;
+            }
+
             const order = await tx.salesorder.create({
                 data: {
                     orderNumber,
@@ -62,12 +70,22 @@ const createOrder = async (req, res) => {
                     subtotal,
                     discountAmount: totalDiscount,
                     taxAmount,
-                    totalAmount: (subtotal - totalDiscount) + taxAmount,
+                    overallDiscount: parseFloat(overallDiscount) || 0,
+                    overallDiscountType: overallDiscountType || 'percentage',
+                    totalAmount: finalTotal,
                     notes,
                     billingName,
                     billingAddress,
+                    billingCity,
+                    billingState,
+                    billingZipCode,
+                    billingCountry,
                     shippingName,
                     shippingAddress,
+                    shippingCity,
+                    shippingState,
+                    shippingZipCode,
+                    shippingCountry,
                     salesorderitem: {
                         create: orderItems.map(i => ({
                             productId: i.productId,
@@ -207,7 +225,7 @@ const getOrderById = async (req, res) => {
 const updateOrder = async (req, res) => {
     try {
         const { id } = req.params;
-        const { orderNumber, date, expectedDate, customerId, items, notes, status, billingName, billingAddress, shippingName, shippingAddress } = req.body;
+        const { orderNumber, date, expectedDate, customerId, items, notes, status, billingName, billingAddress, billingCity, billingState, billingZipCode, billingCountry, shippingName, shippingAddress, shippingCity, shippingState, shippingZipCode, shippingCountry, overallDiscount, overallDiscountType } = req.body;
         const companyId = req.user?.companyId || req.query.companyId || req.body.companyId;
 
         if (!companyId) {
@@ -259,6 +277,14 @@ const updateOrder = async (req, res) => {
                 where: { orderId: parseInt(id) }
             });
 
+            const baseTotal = (subtotal - totalDiscount) + taxAmount;
+            let finalTotal = baseTotal;
+            if (overallDiscount && overallDiscountType === 'percentage') {
+                finalTotal = baseTotal - (baseTotal * overallDiscount / 100);
+            } else if (overallDiscount) {
+                finalTotal = baseTotal - overallDiscount;
+            }
+
             return await tx.salesorder.update({
                 where: { id: parseInt(id), companyId: parseInt(companyId) },
                 data: {
@@ -270,13 +296,23 @@ const updateOrder = async (req, res) => {
                     subtotal,
                     discountAmount: totalDiscount,
                     taxAmount,
-                    totalAmount: (subtotal - totalDiscount) + taxAmount,
+                    overallDiscount: parseFloat(overallDiscount) || 0,
+                    overallDiscountType: overallDiscountType || 'percentage',
+                    totalAmount: finalTotal,
                     notes,
                     status,
                     billingName,
                     billingAddress,
+                    billingCity,
+                    billingState,
+                    billingZipCode,
+                    billingCountry,
                     shippingName,
                     shippingAddress,
+                    shippingCity,
+                    shippingState,
+                    shippingZipCode,
+                    shippingCountry,
                     salesorderitem: {
                         create: orderItems.map(i => ({
                             productId: i.productId,

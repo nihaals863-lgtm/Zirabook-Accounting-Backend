@@ -4,7 +4,7 @@ const prisma = new PrismaClient();
 // Create Sales Quotation
 const createQuotation = async (req, res) => {
     try {
-        const { quotationNumber, date, expiryDate, customerId, items, notes } = req.body;
+        const { quotationNumber, date, expiryDate, customerId, items, notes, overallDiscount, overallDiscountType } = req.body;
         const companyId = req.user?.companyId || req.query.companyId || req.body.companyId;
 
         if (!companyId) {
@@ -60,8 +60,16 @@ const createQuotation = async (req, res) => {
                     company: { connect: { id: parseInt(companyId) } },
                     subtotal,
                     discountAmount: totalDiscount,
+                    overallDiscount: parseFloat(overallDiscount) || 0,
+                    overallDiscountType: overallDiscountType || 'percentage',
                     taxAmount,
-                    totalAmount: (subtotal - totalDiscount) + taxAmount,
+                    totalAmount: (() => {
+                        const baseTotal = (subtotal - totalDiscount) + taxAmount;
+                        if (overallDiscountType === 'percentage') {
+                            return baseTotal - (baseTotal * (parseFloat(overallDiscount) || 0) / 100);
+                        }
+                        return baseTotal - (parseFloat(overallDiscount) || 0);
+                    })(),
                     notes,
                     salesquotationitem: {
                         create: quotationItems.map(i => ({
@@ -97,6 +105,9 @@ const createQuotation = async (req, res) => {
             }
 
             return quotation;
+        }, {
+            maxWait: 5000,
+            timeout: 60000
         });
 
         res.status(201).json({ success: true, data: result });
@@ -165,7 +176,7 @@ const getQuotationById = async (req, res) => {
 const updateQuotation = async (req, res) => {
     try {
         const { id } = req.params;
-        const { quotationNumber, date, expiryDate, customerId, items, notes, status } = req.body;
+        const { quotationNumber, date, expiryDate, customerId, items, notes, status, overallDiscount, overallDiscountType } = req.body;
         const companyId = req.user?.companyId || req.query.companyId || req.body.companyId;
 
         if (!companyId) {
@@ -229,8 +240,16 @@ const updateQuotation = async (req, res) => {
                     company: { connect: { id: parseInt(companyId) } },
                     subtotal,
                     discountAmount: totalDiscount,
+                    overallDiscount: parseFloat(overallDiscount) || 0,
+                    overallDiscountType: overallDiscountType || 'percentage',
                     taxAmount,
-                    totalAmount: (subtotal - totalDiscount) + taxAmount,
+                    totalAmount: (() => {
+                        const baseTotal = (subtotal - totalDiscount) + taxAmount;
+                        if (overallDiscountType === 'percentage') {
+                            return baseTotal - (baseTotal * (parseFloat(overallDiscount) || 0) / 100);
+                        }
+                        return baseTotal - (parseFloat(overallDiscount) || 0);
+                    })(),
                     notes,
                     status,
                     salesquotationitem: {
@@ -248,6 +267,9 @@ const updateQuotation = async (req, res) => {
                     }
                 }
             });
+        }, {
+            maxWait: 5000,
+            timeout: 60000
         });
 
         const updated = await prisma.salesquotation.findFirst({

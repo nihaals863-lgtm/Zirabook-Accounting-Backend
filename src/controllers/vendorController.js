@@ -1,5 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../config/prisma');
 
 // Create Vendor with Automatic Ledger Creation
 const createVendor = async (req, res) => {
@@ -33,25 +32,44 @@ const createVendor = async (req, res) => {
             });
         }
 
+        // Check if vendor with same name/email already exists in the same company
+        const existingVendor = await prisma.vendor.findFirst({
+            where: {
+                companyId: companyId,
+                OR: [
+                    { name: vendorData.name },
+                    { email: vendorData.email && vendorData.email !== '' ? vendorData.email : undefined }
+                ].filter(Boolean)
+            }
+        });
+
+        if (existingVendor) {
+            return res.status(409).json({
+                success: false,
+                message: 'A vendor with this name or email already exists in this company.'
+            });
+        }
+
+        // Check if a ledger with same name already exists in this company
+        const existingLedger = await prisma.ledger.findFirst({
+            where: {
+                companyId: companyId,
+                name: vendorData.name
+            }
+        });
+
+        if (existingLedger) {
+            return res.status(409).json({
+                success: false,
+                message: 'A ledger with this name already exists. Please use a unique name.'
+            });
+        }
+
         // Create Vendor and Ledger in a transaction
         const result = await prisma.$transaction(async (tx) => {
-            // Create Ledger first
             const ledgerName = vendorData.name;
-            const ledger = await tx.ledger.create({
-                data: {
-                    name: ledgerName,
-                    groupId: accountsPayableSubGroup.groupId,
-                    subGroupId: accountsPayableSubGroup.id,
-                    companyId: companyId,
-                    openingBalance: parseFloat(vendorData.accountBalance) || 0,
-                    currentBalance: parseFloat(vendorData.accountBalance) || 0,
-                    isControlAccount: false,
-                    isEnabled: true,
-                    description: `Vendor Ledger for ${ledgerName}`
-                }
-            });
-
-            // Create Vendor
+            
+            // Create Vendor with nested Ledger
             const vendor = await tx.vendor.create({
                 data: {
                     name: vendorData.name,
@@ -83,7 +101,7 @@ const createVendor = async (req, res) => {
                     billingCountry: vendorData.billingCountry,
                     billingZipCode: vendorData.billingZipCode,
 
-                    // Shipping Address
+                    // Shipping Address (Legacy fields)
                     shippingSameAsBilling: vendorData.shippingSameAsBilling || false,
                     shippingName: vendorData.shippingName,
                     shippingPhone: vendorData.shippingPhone,
@@ -94,17 +112,59 @@ const createVendor = async (req, res) => {
                     shippingZipCode: vendorData.shippingZipCode,
 
                     companyId: companyId,
-                    ledgerId: ledger.id
+                    
+                    // Link Ledger via nested create
+                    ledger: {
+                        create: {
+                            name: ledgerName,
+                            groupId: accountsPayableSubGroup.groupId,
+                            subGroupId: accountsPayableSubGroup.id,
+                            companyId: companyId,
+                            openingBalance: parseFloat(vendorData.accountBalance) || 0,
+                            currentBalance: parseFloat(vendorData.accountBalance) || 0,
+                            isControlAccount: false,
+                            isEnabled: true,
+                            description: `Vendor Ledger for ${ledgerName}`
+                        }
+                    },
+
+                    // Multiple Shipping Addresses
+                    shippingaddress: {
+                        create: (vendorData.shippingAddresses && Array.isArray(vendorData.shippingAddresses)) ? vendorData.shippingAddresses.map(addr => ({
+                            name: addr.name,
+                            phone: addr.phone,
+                            address: addr.address,
+                            city: addr.city,
+                            state: addr.state,
+                            country: addr.country,
+                            zipCode: addr.zipCode,
+                            isDefault: addr.isDefault || false
+                        })) : []
+                    }
+                },
+                include: {
+                    ledger: true
                 }
             });
 
-            // Update Ledger with vendorId
-            await tx.ledger.update({
-                where: { id: ledger.id },
-                data: { vendorId: vendor.id }
+            // Update cross-references within the same transaction
+            const ledgerId = vendor.ledger.id;
+            const vendorId = vendor.id;
+
+            await tx.vendor.update({
+                where: { id: vendorId },
+                data: { ledgerId: ledgerId }
             });
 
-            return { vendor, ledger };
+            await tx.ledger.update({
+                where: { id: ledgerId },
+                data: { vendorId: vendorId }
+            });
+
+            return { vendor: { ...vendor, ledgerId }, ledger: { ...vendor.ledger, vendorId } };
+        }, {
+            timeout: 15000, 
+            maxWait: 5000
         });
 
         res.status(201).json({
@@ -136,6 +196,7 @@ const getAllVendors = async (req, res) => {
             where: { companyId },
             include: {
                 ledger: true,
+                shippingaddress: true,
                 purchasebill: {
                     select: {
                         id: true,
@@ -201,7 +262,8 @@ const getVendorById = async (req, res) => {
                 goodsreceiptnote: true,
                 payment: {
                     orderBy: { date: 'desc' }
-                }
+                },
+                shippingaddress: true
             }
         });
 
@@ -289,7 +351,22 @@ const updateVendor = async (req, res) => {
                     shippingCity: vendorData.shippingCity,
                     shippingState: vendorData.shippingState,
                     shippingCountry: vendorData.shippingCountry,
-                    shippingZipCode: vendorData.shippingZipCode
+                    shippingZipCode: vendorData.shippingZipCode,
+
+                    // Update Shipping Addresses
+                    shippingaddress: {
+                        deleteMany: {},
+                        create: (vendorData.shippingAddresses && Array.isArray(vendorData.shippingAddresses)) ? vendorData.shippingAddresses.map(addr => ({
+                            name: addr.name,
+                            phone: addr.phone,
+                            address: addr.address,
+                            city: addr.city,
+                            state: addr.state,
+                            country: addr.country,
+                            zipCode: addr.zipCode,
+                            isDefault: addr.isDefault || false
+                        })) : []
+                    }
                 }
             });
 
@@ -306,6 +383,9 @@ const updateVendor = async (req, res) => {
             }
 
             return vendor;
+        }, {
+            maxWait: 5000,
+            timeout: 15000
         });
 
         res.status(200).json({
@@ -486,6 +566,9 @@ const deleteVendor = async (req, res) => {
                     where: { id: vendor.ledgerId }
                 });
             }
+        }, {
+            timeout: 15000,
+            maxWait: 5000
         });
 
         res.status(200).json({

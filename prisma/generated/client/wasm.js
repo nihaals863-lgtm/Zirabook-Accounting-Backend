@@ -400,6 +400,8 @@ exports.Prisma.InvoiceScalarFieldEnum = {
   salesOrderId: 'salesOrderId',
   notes: 'notes',
   createdAt: 'createdAt',
+  overallDiscount: 'overallDiscount',
+  overallDiscountType: 'overallDiscountType',
   updatedAt: 'updatedAt',
   deliveryChallanId: 'deliveryChallanId',
   billingName: 'billingName',
@@ -407,11 +409,13 @@ exports.Prisma.InvoiceScalarFieldEnum = {
   billingCity: 'billingCity',
   billingState: 'billingState',
   billingZipCode: 'billingZipCode',
+  billingCountry: 'billingCountry',
   shippingName: 'shippingName',
   shippingAddress: 'shippingAddress',
   shippingCity: 'shippingCity',
   shippingState: 'shippingState',
-  shippingZipCode: 'shippingZipCode'
+  shippingZipCode: 'shippingZipCode',
+  shippingCountry: 'shippingCountry'
 };
 
 exports.Prisma.InvoiceitemScalarFieldEnum = {
@@ -593,6 +597,8 @@ exports.Prisma.PurchasebillScalarFieldEnum = {
   vendorId: 'vendorId',
   companyId: 'companyId',
   subtotal: 'subtotal',
+  overallDiscount: 'overallDiscount',
+  overallDiscountType: 'overallDiscountType',
   discountAmount: 'discountAmount',
   taxAmount: 'taxAmount',
   totalAmount: 'totalAmount',
@@ -603,7 +609,19 @@ exports.Prisma.PurchasebillScalarFieldEnum = {
   createdAt: 'createdAt',
   updatedAt: 'updatedAt',
   grnId: 'grnId',
-  purchaseOrderId: 'purchaseOrderId'
+  purchaseOrderId: 'purchaseOrderId',
+  billingName: 'billingName',
+  billingAddress: 'billingAddress',
+  billingCity: 'billingCity',
+  billingState: 'billingState',
+  billingZipCode: 'billingZipCode',
+  billingCountry: 'billingCountry',
+  shippingName: 'shippingName',
+  shippingAddress: 'shippingAddress',
+  shippingCity: 'shippingCity',
+  shippingState: 'shippingState',
+  shippingZipCode: 'shippingZipCode',
+  shippingCountry: 'shippingCountry'
 };
 
 exports.Prisma.PurchasebillitemScalarFieldEnum = {
@@ -635,6 +653,20 @@ exports.Prisma.PurchaseorderScalarFieldEnum = {
   totalAmount: 'totalAmount',
   status: 'status',
   notes: 'notes',
+  overallDiscount: 'overallDiscount',
+  overallDiscountType: 'overallDiscountType',
+  billingName: 'billingName',
+  billingAddress: 'billingAddress',
+  billingCity: 'billingCity',
+  billingState: 'billingState',
+  billingZipCode: 'billingZipCode',
+  billingCountry: 'billingCountry',
+  shippingName: 'shippingName',
+  shippingAddress: 'shippingAddress',
+  shippingCity: 'shippingCity',
+  shippingState: 'shippingState',
+  shippingZipCode: 'shippingZipCode',
+  shippingCountry: 'shippingCountry',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
@@ -667,6 +699,8 @@ exports.Prisma.PurchasequotationScalarFieldEnum = {
   totalAmount: 'totalAmount',
   status: 'status',
   notes: 'notes',
+  overallDiscount: 'overallDiscount',
+  overallDiscountType: 'overallDiscountType',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt',
   attachments: 'attachments',
@@ -742,6 +776,8 @@ exports.Prisma.SalesorderScalarFieldEnum = {
   subtotal: 'subtotal',
   discountAmount: 'discountAmount',
   taxAmount: 'taxAmount',
+  overallDiscount: 'overallDiscount',
+  overallDiscountType: 'overallDiscountType',
   totalAmount: 'totalAmount',
   status: 'status',
   notes: 'notes',
@@ -752,11 +788,13 @@ exports.Prisma.SalesorderScalarFieldEnum = {
   billingCity: 'billingCity',
   billingState: 'billingState',
   billingZipCode: 'billingZipCode',
+  billingCountry: 'billingCountry',
   shippingName: 'shippingName',
   shippingAddress: 'shippingAddress',
   shippingCity: 'shippingCity',
   shippingState: 'shippingState',
-  shippingZipCode: 'shippingZipCode'
+  shippingZipCode: 'shippingZipCode',
+  shippingCountry: 'shippingCountry'
 };
 
 exports.Prisma.SalesorderitemScalarFieldEnum = {
@@ -784,6 +822,8 @@ exports.Prisma.SalesquotationScalarFieldEnum = {
   companyId: 'companyId',
   subtotal: 'subtotal',
   discountAmount: 'discountAmount',
+  overallDiscount: 'overallDiscount',
+  overallDiscountType: 'overallDiscountType',
   taxAmount: 'taxAmount',
   totalAmount: 'totalAmount',
   status: 'status',
@@ -1044,6 +1084,22 @@ exports.Prisma.RoleScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
+exports.Prisma.ShippingaddressScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  phone: 'phone',
+  address: 'address',
+  city: 'city',
+  state: 'state',
+  country: 'country',
+  zipCode: 'zipCode',
+  isDefault: 'isDefault',
+  customerId: 'customerId',
+  vendorId: 'vendorId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -1278,7 +1334,8 @@ exports.Prisma.ModelName = {
   warehouse: 'warehouse',
   voucher: 'voucher',
   voucheritem: 'voucheritem',
-  role: 'role'
+  role: 'role',
+  shippingaddress: 'shippingaddress'
 };
 
 /**

@@ -4,7 +4,7 @@ const prisma = new PrismaClient();
 // Create Purchase Order (Direct or from Quotation)
 const createOrder = async (req, res) => {
     try {
-        const { orderNumber, date, expectedDate, vendorId, items, notes, quotationId } = req.body;
+        const { orderNumber, date, expectedDate, vendorId, items, notes, quotationId, overallDiscount, overallDiscountType } = req.body;
         const companyId = req.user?.companyId || req.query.companyId || req.body.companyId;
 
         if (!orderNumber || !vendorId || !items || items.length === 0) {
@@ -43,6 +43,14 @@ const createOrder = async (req, res) => {
         });
 
         const result = await prisma.$transaction(async (tx) => {
+            const baseTotal = (subtotal - totalDiscount) + taxAmount;
+            let finalTotal = baseTotal;
+            if (overallDiscount && overallDiscountType === 'percentage') {
+                finalTotal = baseTotal - (baseTotal * overallDiscount / 100);
+            } else if (overallDiscount) {
+                finalTotal = baseTotal - overallDiscount;
+            }
+
             const order = await tx.purchaseorder.create({
                 data: {
                     orderNumber,
@@ -54,7 +62,9 @@ const createOrder = async (req, res) => {
                     subtotal,
                     discountAmount: totalDiscount,
                     taxAmount,
-                    totalAmount: (subtotal - totalDiscount) + taxAmount,
+                    overallDiscount: parseFloat(overallDiscount) || 0,
+                    overallDiscountType: overallDiscountType || 'percentage',
+                    totalAmount: finalTotal,
                     notes,
                     purchaseorderitem: {
                         create: orderItems.map(i => ({
@@ -154,7 +164,7 @@ const getOrderById = async (req, res) => {
 const updateOrder = async (req, res) => {
     try {
         const { id } = req.params;
-        const { orderNumber, date, expectedDate, vendorId, items, notes, status } = req.body;
+        const { orderNumber, date, expectedDate, vendorId, items, notes, status, overallDiscount, overallDiscountType } = req.body;
         const companyId = req.user?.companyId || req.query.companyId || req.body.companyId;
 
         const existing = await prisma.purchaseorder.findFirst({
@@ -201,6 +211,14 @@ const updateOrder = async (req, res) => {
                 where: { orderId: parseInt(id) }
             });
 
+            const baseTotal = (subtotal - totalDiscount) + taxAmount;
+            let finalTotal = baseTotal;
+            if (overallDiscount && overallDiscountType === 'percentage') {
+                finalTotal = baseTotal - (baseTotal * overallDiscount / 100);
+            } else if (overallDiscount) {
+                finalTotal = baseTotal - overallDiscount;
+            }
+
             // Update Order
             return await tx.purchaseorder.update({
                 where: { id: parseInt(id) },
@@ -212,7 +230,9 @@ const updateOrder = async (req, res) => {
                     subtotal,
                     discountAmount: totalDiscount,
                     taxAmount,
-                    totalAmount: (subtotal - totalDiscount) + taxAmount,
+                    overallDiscount: parseFloat(overallDiscount) || 0,
+                    overallDiscountType: overallDiscountType || 'percentage',
+                    totalAmount: finalTotal,
                     notes,
                     status: (status === 'OPEN' || !status) ? 'PENDING' : status,
                     purchaseorderitem: {

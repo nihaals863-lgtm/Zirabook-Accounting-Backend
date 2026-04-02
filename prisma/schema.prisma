@@ -214,6 +214,7 @@ model customer {
   salesquotation        salesquotation[]
   salesreturn           salesreturn[]
   voucher               voucher[]
+  shippingaddress       shippingaddress[]
 
   @@unique([companyId, email], map: "Customer_companyId_email_key")
 }
@@ -428,6 +429,8 @@ model invoice {
   salesOrderId      Int?
   notes             String?          @db.Text
   createdAt         DateTime         @default(now())
+  overallDiscount   Float            @default(0)
+  overallDiscountType String         @default("percentage")
   updatedAt         DateTime         @default(now()) @updatedAt
   deliveryChallanId Int?
   billingName       String?
@@ -435,11 +438,13 @@ model invoice {
   billingCity       String?
   billingState      String?
   billingZipCode    String?
+  billingCountry    String?
   shippingName      String?
   shippingAddress   String?          @db.Text
   shippingCity      String?
   shippingState     String?
   shippingZipCode   String?
+  shippingCountry   String?
   company           company          @relation(fields: [companyId], references: [id], onDelete: Cascade, map: "Invoice_companyId_fkey")
   customer          customer         @relation(fields: [customerId], references: [id], map: "Invoice_customerId_fkey")
   deliverychallan   deliverychallan? @relation(fields: [deliveryChallanId], references: [id], map: "Invoice_deliveryChallanId_fkey")
@@ -722,6 +727,8 @@ model purchasebill {
   vendorId         Int
   companyId        Int
   subtotal         Float
+  overallDiscount  Float               @default(0)
+  overallDiscountType String            @default("percentage")
   discountAmount   Float               @default(0)
   taxAmount        Float               @default(0)
   totalAmount      Float
@@ -733,6 +740,18 @@ model purchasebill {
   updatedAt        DateTime            @default(now()) @updatedAt
   grnId            Int?
   purchaseOrderId  Int?
+  billingName      String?
+  billingAddress   String?           @db.Text
+  billingCity      String?
+  billingState     String?
+  billingZipCode   String?
+  billingCountry   String?
+  shippingName     String?
+  shippingAddress  String?           @db.Text
+  shippingCity     String?
+  shippingState    String?
+  shippingZipCode  String?
+  shippingCountry  String?
   payment          payment[]
   company          company             @relation(fields: [companyId], references: [id], onDelete: Cascade, map: "PurchaseBill_companyId_fkey")
   goodsreceiptnote goodsreceiptnote?   @relation(fields: [grnId], references: [id], map: "PurchaseBill_grnId_fkey")
@@ -784,6 +803,20 @@ model purchaseorder {
   totalAmount       Float
   status            purchaseorder_status @default(PENDING)
   notes             String?              @db.Text
+  overallDiscount   Float                @default(0)
+  overallDiscountType String             @default("percentage")
+  billingName      String?
+  billingAddress   String?           @db.Text
+  billingCity      String?
+  billingState     String?
+  billingZipCode   String?
+  billingCountry   String?
+  shippingName     String?
+  shippingAddress  String?           @db.Text
+  shippingCity     String?
+  shippingState    String?
+  shippingZipCode  String?
+  shippingCountry  String?
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @default(now()) @updatedAt
   goodsreceiptnote  goodsreceiptnote[]
@@ -832,6 +865,8 @@ model purchasequotation {
   totalAmount           Float
   status                purchasequotation_status @default(DRAFT)
   notes                 String?                  @db.Text
+  overallDiscount       Float                    @default(0)
+  overallDiscountType   String                   @default("percentage")
   createdAt             DateTime                 @default(now())
   updatedAt             DateTime                 @default(now()) @updatedAt
   attachments           String?                  @db.Text
@@ -942,11 +977,13 @@ model salesorder {
   customerId      Int
   quotationId     Int?              @unique(map: "SalesOrder_quotationId_key")
   companyId       Int
-  subtotal        Float
-  discountAmount  Float             @default(0)
-  taxAmount       Float             @default(0)
-  totalAmount     Float
-  status          salesorder_status @default(PENDING)
+  subtotal            Float
+  discountAmount      Float             @default(0)
+  taxAmount           Float             @default(0)
+  overallDiscount     Float             @default(0)
+  overallDiscountType String            @default("percentage")
+  totalAmount         Float
+  status              salesorder_status @default(PENDING)
   notes           String?           @db.Text
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @default(now()) @updatedAt
@@ -957,11 +994,13 @@ model salesorder {
   billingCity      String?
   billingState     String?
   billingZipCode   String?
+  billingCountry   String?
   shippingName     String?
   shippingAddress  String?           @db.Text
   shippingCity     String?
   shippingState    String?
   shippingZipCode  String?
+  shippingCountry  String?
   company         company           @relation(fields: [companyId], references: [id], onDelete: Cascade, map: "SalesOrder_companyId_fkey")
   customer        customer          @relation(fields: [customerId], references: [id], map: "SalesOrder_customerId_fkey")
   salesquotation  salesquotation?   @relation(fields: [quotationId], references: [id], map: "SalesOrder_quotationId_fkey")
@@ -1005,6 +1044,8 @@ model salesquotation {
   companyId          Int
   subtotal           Float
   discountAmount     Float                 @default(0)
+  overallDiscount    Float                 @default(0)
+  overallDiscountType String               @default("amount")
   taxAmount          Float                 @default(0)
   totalAmount        Float
   status             salesquotation_status @default(DRAFT)
@@ -1297,6 +1338,7 @@ model vendor {
   purchasequotation     purchasequotation[]
   purchasereturn        purchasereturn[]
   voucher               voucher[]
+  shippingaddress       shippingaddress[]
   company               company             @relation(fields: [companyId], references: [id], onDelete: Cascade, map: "Vendor_companyId_fkey")
 
   @@unique([companyId, email], map: "Vendor_companyId_email_key")
@@ -1577,4 +1619,25 @@ model role {
 
   @@unique([companyId, name])
   @@index([companyId])
+}
+
+model shippingaddress {
+  id              Int      @id @default(autoincrement())
+  name            String
+  phone           String?
+  address         String   @db.Text
+  city            String?
+  state           String?
+  country         String?
+  zipCode         String?
+  isDefault       Boolean  @default(false)
+  customerId      Int?
+  vendorId        Int?
+  customer        customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vendor          vendor?   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  @@index([customerId])
+  @@index([vendorId])
 }
