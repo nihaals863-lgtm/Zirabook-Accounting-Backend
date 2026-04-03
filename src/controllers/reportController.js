@@ -1296,6 +1296,7 @@ const getAllTransactions = async (req, res) => {
             let accountType = '-';
             let voucherNo = txn.voucherNumber || '-';
             let note = txn.description;
+            let targetId = null;
 
             // Resolve Note from source documents if description is empty or generic
             if (!note || note === '-') {
@@ -1313,42 +1314,60 @@ const getAllTransactions = async (req, res) => {
                 balanceType = 'Debit';
                 partyName = txn.ledger_transaction_debitLedgerIdToledger?.name;
                 accountType = txn.ledger_transaction_debitLedgerIdToledger?.accountgroup?.name || 'Debtors';
-                if (txn.invoice) voucherNo = txn.invoice.invoiceNumber;
+                if (txn.invoice) {
+                    voucherNo = txn.invoice.invoiceNumber;
+                    targetId = txn.invoice.id;
+                }
             }
             // Purchase (Bill) -> Impact on Vendor -> Credit
             else if (txn.voucherType === 'Purchase' || txn.purchasebill) {
                 balanceType = 'Credit';
                 partyName = txn.ledger_transaction_creditLedgerIdToledger?.name;
                 accountType = txn.ledger_transaction_creditLedgerIdToledger?.accountgroup?.name || 'Creditors';
-                if (txn.purchasebill) voucherNo = txn.purchasebill.billNumber;
+                if (txn.purchasebill) {
+                    voucherNo = txn.purchasebill.billNumber;
+                    targetId = txn.purchasebill.id;
+                }
             }
             // Receipt -> Impact on Customer -> Credit
             else if (txn.voucherType === 'Receipt' || txn.receipt) {
                 balanceType = 'Credit';
                 partyName = txn.ledger_transaction_creditLedgerIdToledger?.name; // Customer is credited
                 accountType = txn.ledger_transaction_creditLedgerIdToledger?.accountgroup?.name;
-                if (txn.receipt) voucherNo = txn.receipt.receiptNumber;
+                if (txn.receipt) {
+                    voucherNo = txn.receipt.receiptNumber;
+                    targetId = txn.receipt.id;
+                }
             }
             // Payment -> Impact on Vendor -> Debit
             else if (txn.voucherType === 'Payment' || txn.payment) {
                 balanceType = 'Debit';
                 partyName = txn.ledger_transaction_debitLedgerIdToledger?.name; // Vendor is debited
                 accountType = txn.ledger_transaction_debitLedgerIdToledger?.accountgroup?.name;
-                if (txn.payment) voucherNo = txn.payment.paymentNumber;
+                if (txn.payment) {
+                    voucherNo = txn.payment.paymentNumber;
+                    targetId = txn.payment.id;
+                }
             }
             // POS
             else if (txn.voucherType === 'POS_INVOICE' || txn.posinvoice) {
                 balanceType = 'Debit';
                 partyName = txn.ledger_transaction_debitLedgerIdToledger?.name || 'Walk-in';
                 accountType = txn.ledger_transaction_debitLedgerIdToledger?.accountgroup?.name || 'Debtors';
-                if (txn.posinvoice) voucherNo = txn.posinvoice.invoiceNumber;
+                if (txn.posinvoice) {
+                    voucherNo = txn.posinvoice.invoiceNumber;
+                    targetId = txn.posinvoice.id;
+                }
             }
             // Journal
             else if (txn.voucherType === 'Journal' || txn.journalentry) {
                 balanceType = 'Debit'; // Default view
                 partyName = txn.ledger_transaction_debitLedgerIdToledger?.name;
                 accountType = txn.ledger_transaction_debitLedgerIdToledger?.accountgroup?.name;
-                if (txn.journalentry) voucherNo = txn.journalentry.voucherNumber;
+                if (txn.journalentry) {
+                    voucherNo = txn.journalentry.voucherNumber;
+                    targetId = txn.journalentry.id;
+                }
                 if (!note && txn.journalentry) note = txn.journalentry.narration;
             }
             // Default/Journal/Contra
@@ -1363,6 +1382,7 @@ const getAllTransactions = async (req, res) => {
                 id: txn.id,
                 date: txn.date,
                 transactionId: `TXN-${txn.id.toString().padStart(5, '0')}`,
+                targetId,
                 balanceType,
                 voucherType: txn.voucherType,
                 voucherNo,

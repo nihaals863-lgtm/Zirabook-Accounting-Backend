@@ -340,15 +340,48 @@ const getInvoices = async (req, res) => {
         const companyId = req.user?.companyId || req.query.companyId;
         if (!companyId) return res.status(400).json({ success: false, message: 'Company ID Missing' });
 
-        const invoices = await prisma.invoice.findMany({
-            where: { companyId: parseInt(companyId) },
-            include: {
-                customer: { select: { name: true, email: true, ledgerId: true } },
-                invoiceitem: true
-            },
-            orderBy: { createdAt: 'desc' }
-        });
-        res.status(200).json({ success: true, data: invoices });
+        const [invoices, posInvoices] = await Promise.all([
+            prisma.invoice.findMany({
+                where: { companyId: parseInt(companyId) },
+                include: {
+                    customer: { select: { id: true, name: true, email: true, ledgerId: true } },
+                    invoiceitem: true,
+                    salesorder: true,
+                    deliverychallan: true,
+                    salesreturn: {
+                        include: {
+                            salesreturnitem: true
+                        }
+                    }
+                },
+                orderBy: { createdAt: 'desc' }
+            }),
+            prisma.posinvoice.findMany({
+                where: { companyId: parseInt(companyId) },
+                include: {
+                    customer: { select: { id: true, name: true, email: true, ledgerId: true } },
+                    posinvoiceitem: {
+                        include: { product: true }
+                    }
+                },
+                orderBy: { createdAt: 'desc' }
+            })
+        ]);
+
+        // Merge POS invoices into the unified list
+        const unifiedInvoices = [
+            ...invoices.map(inv => ({ ...inv, type: 'TAX_INVOICE' })),
+            ...posInvoices.map(pos => ({
+                ...pos,
+                type: 'POS_INVOICE',
+                invoiceitem: pos.posinvoiceitem,
+                salesreturn: [],
+                dueDate: pos.date,
+                status: pos.balanceAmount > 0 ? 'PARTIAL' : 'PAID'
+            }))
+        ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        res.status(200).json({ success: true, data: unifiedInvoices });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

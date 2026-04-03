@@ -263,6 +263,9 @@ const getVendorById = async (req, res) => {
                 payment: {
                     orderBy: { date: 'desc' }
                 },
+                purchasereturn: {
+                    orderBy: { date: 'desc' }
+                },
                 shippingaddress: true
             }
         });
@@ -473,7 +476,10 @@ const getVendorStatement = async (req, res) => {
                 debit: isDebit ? amount : 0,
                 credit: !isDebit ? amount : 0,
                 balance: runningBalance,
-                referenceDoc: tx.purchaseBill || tx.payment || null
+                purchaseBillId: tx.purchaseBillId || null,
+                receiptId: tx.receiptId || null,
+                purchaseReturnId: tx.purchaseReturnId || null,
+                referenceDoc: tx.purchasebill || tx.payment || tx.purchasereturn || null
             };
         });
 

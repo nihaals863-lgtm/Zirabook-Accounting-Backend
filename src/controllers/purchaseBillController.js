@@ -203,7 +203,8 @@ const getBills = async (req, res) => {
                     }
                 },
                 purchaseorder: true,
-                goodsreceiptnote: true
+                goodsreceiptnote: true,
+                purchasereturn: true
             },
             orderBy: { createdAt: 'desc' }
         });

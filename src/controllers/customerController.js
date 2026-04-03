@@ -68,7 +68,7 @@ const createCustomer = async (req, res) => {
         // Create Customer and Ledger in a transaction
         const result = await prisma.$transaction(async (tx) => {
             const ledgerName = customerData.name;
-            
+
             // Create Customer with nested Ledger
             const customer = await tx.customer.create({
                 data: {
@@ -112,7 +112,7 @@ const createCustomer = async (req, res) => {
                     shippingZipCode: customerData.shippingZipCode,
 
                     companyId: companyId,
-                    
+
                     // Link Ledger via nested create
                     ledger: {
                         create: {
@@ -248,6 +248,15 @@ const getCustomerById = async (req, res) => {
                     }
                 },
                 receipt: true,
+                salesreturn: {
+                    include: {
+                        salesreturnitem: {
+                            include: {
+                                product: true
+                            }
+                        }
+                    }
+                },
                 shippingaddress: true
             }
         });
@@ -431,6 +440,7 @@ const getCustomerStatement = async (req, res) => {
             include: {
                 invoice: { select: { invoiceNumber: true, totalAmount: true } },
                 receipt: { select: { receiptNumber: true, amount: true } },
+                posinvoice: { select: { invoiceNumber: true, totalAmount: true } },
                 journalentry: true
             },
             orderBy: { date: 'asc' }
@@ -458,7 +468,13 @@ const getCustomerStatement = async (req, res) => {
                 debit: isDebit ? amount : 0,
                 credit: !isDebit ? amount : 0,
                 balance: runningBalance,
-                referenceDoc: tx.invoice || tx.receipt || null
+                invoiceId: tx.invoiceId || null,
+                receiptId: tx.receiptId || null,
+                posInvoiceId: tx.posInvoiceId || null,
+                salesReturnId: tx.salesReturnId || null,
+                purchaseBillId: tx.purchaseBillId || null,
+                purchaseReturnId: tx.purchaseReturnId || null,
+                referenceDoc: tx.invoice || tx.receipt || tx.posinvoice || tx.salesreturn || null
             };
         });
 
