@@ -5,7 +5,14 @@ const prisma = new PrismaClient();
 const createExpense = async (req, res) => {
     try {
         const companyId = req.user?.companyId || req.body.companyId;
-        const { date, paidFromAccountId, items, manualReceiptNo, narration, paidToVendorId, paidToAccountId } = req.body;
+        const { date, paidFromAccountId, items, manualReceiptNo, narration, paidToVendorId, paidToAccountId, signature } = req.body;
+        
+        // Fetch company logo
+        const company = await prisma.company.findUnique({
+            where: { id: parseInt(companyId) },
+            select: { logo: true }
+        });
+        const companyLogo = company?.logo || null;
 
         if (!companyId) {
             return res.status(400).json({ success: false, message: 'Company ID is required' });
@@ -40,6 +47,8 @@ const createExpense = async (req, res) => {
                     amount: parseFloat(item.amount),
                     narration: combinedNarration,
                     companyId: parseInt(companyId),
+                    signature: signature,
+                    logo: companyLogo
                 }
             });
 
@@ -170,7 +179,9 @@ const getExpenses = async (req, res) => {
                 accounts: [...new Set(txs.map(t => t.ledger_transaction_debitLedgerIdToledger.name))].join(', '),
                 items: items,
                 totalAmount: txs.reduce((sum, t) => sum + t.amount, 0),
-                mainNarration: mainNarration
+                mainNarration: mainNarration,
+                signature: firstTx.signature,
+                logo: firstTx.logo
             };
         });
 
@@ -243,7 +254,14 @@ const updateExpense = async (req, res) => {
     try {
         let { voucherNumber } = req.params;
         const companyId = req.user?.companyId || req.query.companyId || req.body.companyId;
-        const { date, paidFromAccountId, items, manualReceiptNo, mainNarration } = req.body;
+        const { date, paidFromAccountId, items, manualReceiptNo, mainNarration, signature } = req.body;
+
+        // Fetch company logo
+        const company = await prisma.company.findUnique({
+            where: { id: parseInt(companyId) },
+            select: { logo: true }
+        });
+        const companyLogo = company?.logo || null;
 
         if (!companyId) return res.status(400).json({ success: false, message: 'Company ID required' });
 
@@ -300,7 +318,9 @@ const updateExpense = async (req, res) => {
                     creditLedgerId: parseInt(paidFromAccountId),
                     amount: parseFloat(item.amount),
                     narration: combinedNarration,
-                    companyId: parseInt(companyId)
+                    companyId: parseInt(companyId),
+                    signature: signature,
+                    logo: companyLogo
                 }
             });
 

@@ -528,6 +528,7 @@ model ledger {
   voucher_paidToLedger                           voucher[]        @relation("voucher_paidToLedger")
   receipt_CashBankAccount                        receipt[]        @relation("Receipt_CashBankAccount")
   payment_CashBankAccount                        payment[]        @relation("Payment_CashBankAccount")
+  voucheritem                                    voucheritem[]
 
   @@unique([companyId, name], map: "Ledger_companyId_name_key")
   @@index([groupId], map: "Ledger_groupId_fkey")
@@ -1236,6 +1237,8 @@ model transaction {
   createdAt                                 DateTime                @default(now())
   updatedAt                                 DateTime                @default(now()) @updatedAt
   posInvoiceId                              Int?
+  signature                                 String?                 @db.LongText
+  logo                                      String?                 @db.LongText
   company                                   company                 @relation(fields: [companyId], references: [id], onDelete: Cascade, map: "Transaction_companyId_fkey")
   ledger_transaction_creditLedgerIdToledger ledger                  @relation("transaction_creditLedgerIdToledger", fields: [creditLedgerId], references: [id], map: "Transaction_creditLedgerId_fkey")
   ledger_transaction_debitLedgerIdToledger  ledger                  @relation("transaction_debitLedgerIdToledger", fields: [debitLedgerId], references: [id], map: "Transaction_debitLedgerId_fkey")
@@ -1589,14 +1592,20 @@ model voucheritem {
   voucherId   Int
   productId   Int?
   productName String?
-  description String?  @db.Text
-  quantity    Float    @default(1)
-  rate        Float
+  ledgerName  String?
+  ledgerId    Int?
+  description String?    @db.Text
+  quantity    Float      @default(1)
+  rate        Float?
   amount      Float
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now()) @updatedAt
-  voucher     voucher  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
-  product     product? @relation(fields: [productId], references: [id])
+  debit       Float?
+  credit      Float?
+  narration   String?    @db.Text
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @default(now()) @updatedAt
+  voucher     voucher    @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  product     product?   @relation(fields: [productId], references: [id])
+  ledger      ledger?    @relation(fields: [ledgerId], references: [id])
 
   @@index([voucherId])
   @@index([productId])
@@ -1606,6 +1615,7 @@ enum voucher_type {
   EXPENSE
   INCOME
   CONTRA
+  JOURNAL
 }
 
 model role {

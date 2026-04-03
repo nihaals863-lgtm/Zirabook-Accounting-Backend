@@ -956,7 +956,9 @@ exports.Prisma.TransactionScalarFieldEnum = {
   paymentId: 'paymentId',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt',
-  posInvoiceId: 'posInvoiceId'
+  posInvoiceId: 'posInvoiceId',
+  signature: 'signature',
+  logo: 'logo'
 };
 
 exports.Prisma.UomScalarFieldEnum = {
@@ -1067,10 +1069,15 @@ exports.Prisma.VoucheritemScalarFieldEnum = {
   voucherId: 'voucherId',
   productId: 'productId',
   productName: 'productName',
+  ledgerName: 'ledgerName',
+  ledgerId: 'ledgerId',
   description: 'description',
   quantity: 'quantity',
   rate: 'rate',
   amount: 'amount',
+  debit: 'debit',
+  credit: 'credit',
+  narration: 'narration',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
@@ -1275,7 +1282,8 @@ exports.transaction_voucherType = exports.$Enums.transaction_voucherType = {
 exports.voucher_type = exports.$Enums.voucher_type = {
   EXPENSE: 'EXPENSE',
   INCOME: 'INCOME',
-  CONTRA: 'CONTRA'
+  CONTRA: 'CONTRA',
+  JOURNAL: 'JOURNAL'
 };
 
 exports.Prisma.ModelName = {

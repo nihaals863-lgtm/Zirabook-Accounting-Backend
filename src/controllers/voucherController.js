@@ -38,6 +38,14 @@ const createVoucher = async (req, res) => {
                 return res.status(400).json({ success: false, message: 'Total Debit must equal Total Credit' });
             }
 
+            // Check for duplicate voucher number
+            const existingJE = await prisma.journalentry.findFirst({
+                where: { voucherNumber, companyId: parseInt(companyId) }
+            });
+            if (existingJE) {
+                return res.status(400).json({ success: false, message: `Journal Voucher ${voucherNumber} already exists.` });
+            }
+
             // Create Journal Entry Header
             const je = await prisma.journalentry.create({
                 data: {
@@ -102,6 +110,39 @@ const createVoucher = async (req, res) => {
 
             await prisma.transaction.createMany({ data: transactions });
 
+            // Also save to voucher table so it appears in the voucher list
+            const totalDrAmount = journalRows.reduce((sum, r) => sum + (parseFloat(r.debit) || 0), 0);
+            
+            // Map journal rows to voucher items for visibility in "View Voucher" modal
+            const voucherItems = await Promise.all(journalRows.map(async (row) => {
+                const ledger = await prisma.ledger.findUnique({ where: { id: parseInt(row.accountId) } });
+                return {
+                    ledgerName: ledger?.name || 'Unknown',
+                    ledgerId: parseInt(row.accountId),
+                    debit: parseFloat(row.debit) || 0,
+                    credit: parseFloat(row.credit) || 0,
+                    narration: row.narration || '',
+                    amount: (parseFloat(row.debit) || 0) + (parseFloat(row.credit) || 0) // used for legacy storage
+                };
+            }));
+
+            await prisma.voucher.create({
+                data: {
+                    voucherNumber,
+                    voucherType: 'JOURNAL',
+                    date: date ? new Date(date) : new Date(),
+                    companyId: parseInt(companyId),
+                    notes: notes || '',
+                    totalAmount: totalDrAmount,
+                    subtotal: totalDrAmount,
+                    logo,
+                    signature,
+                    voucheritem: {
+                        create: voucherItems
+                    }
+                }
+            });
+
             return res.status(201).json({ success: true, message: 'Journal Voucher created successfully', data: je });
         }
 
@@ -113,13 +154,18 @@ const createVoucher = async (req, res) => {
         const subtotal = items.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
         const totalAmount = subtotal;
 
+        // Map items to voucher items with accounting fields for the view modal
         const voucherItems = items.map(item => ({
             productId: item.productId ? parseInt(item.productId) : null,
             productName: item.productName || item.name,
+            ledgerName: item.productName || item.name || 'Account Detail',
             description: item.description,
             quantity: parseFloat(item.quantity) || 1,
             rate: parseFloat(item.rate) || 0,
-            amount: parseFloat(item.amount) || 0
+            amount: parseFloat(item.amount) || 0,
+            debit: voucherType.toUpperCase() === 'EXPENSE' ? parseFloat(item.amount) : 0,
+            credit: voucherType.toUpperCase() === 'INCOME' ? parseFloat(item.amount) : 0,
+            narration: item.description || ''
         }));
 
         const voucher = await prisma.voucher.create({
@@ -355,13 +401,18 @@ const updateVoucher = async (req, res) => {
             where: { voucherId: parseInt(id) }
         });
 
+        // Use the same item mapping logic as 'create' for consistency
         const voucherItems = items.map(item => ({
             productId: item.productId ? parseInt(item.productId) : null,
             productName: item.productName || item.name,
+            ledgerName: item.ledgerName || item.productName || item.name || 'Account Detail',
             description: item.description,
             quantity: parseFloat(item.quantity) || 1,
             rate: parseFloat(item.rate) || 0,
-            amount: parseFloat(item.amount) || 0
+            amount: parseFloat(item.amount) || 0,
+            debit: item.debit || (voucherType?.toUpperCase() === 'EXPENSE' ? parseFloat(item.amount) : 0),
+            credit: item.credit || (voucherType?.toUpperCase() === 'INCOME' ? parseFloat(item.amount) : 0),
+            narration: item.narration || item.description || ''
         }));
 
         const updatedVoucher = await prisma.voucher.update({
