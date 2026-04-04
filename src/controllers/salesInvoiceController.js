@@ -345,7 +345,13 @@ const getInvoices = async (req, res) => {
                 where: { companyId: parseInt(companyId) },
                 include: {
                     customer: { select: { id: true, name: true, email: true, ledgerId: true } },
-                    invoiceitem: true,
+                    invoiceitem: {
+                        include: {
+                            product: true,
+                            service: true,
+                            warehouse: true
+                        }
+                    },
                     salesorder: true,
                     deliverychallan: true,
                     salesreturn: {
@@ -361,7 +367,7 @@ const getInvoices = async (req, res) => {
                 include: {
                     customer: { select: { id: true, name: true, email: true, ledgerId: true } },
                     posinvoiceitem: {
-                        include: { product: true }
+                        include: { product: true, warehouse: true }
                     }
                 },
                 orderBy: { createdAt: 'desc' }
@@ -586,11 +592,38 @@ const getNextNumber = async (req, res) => {
     }
 };
 
+const getPublicInvoiceById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const invoice = await prisma.invoice.findUnique({
+            where: { id: parseInt(id) },
+            include: {
+                invoiceitem: {
+                    include: {
+                        product: true,
+                        service: true,
+                        warehouse: true
+                    }
+                },
+                customer: true,
+                salesorder: true,
+                company: true
+            }
+        });
+
+        if (!invoice) return res.status(404).json({ success: false, message: 'Invoice not found' });
+        res.status(200).json({ success: true, data: invoice });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 module.exports = {
     createInvoice,
     getInvoices,
     getInvoiceById,
     updateInvoice,
     deleteInvoice,
-    getNextNumber
+    getNextNumber,
+    getPublicInvoiceById
 };

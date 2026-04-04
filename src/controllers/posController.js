@@ -63,12 +63,18 @@ const createPOSInvoice = async (req, res) => {
             let salesLedger = await tx.ledger.findFirst({
                 where: { companyId: parseInt(currentCompanyId), name: { contains: 'Sales' }, accountgroup: { type: 'INCOME' } }
             });
+
             if (!salesLedger) {
-                const refGroup = await tx.accountgroup.findFirst({ where: { companyId: parseInt(currentCompanyId), type: 'INCOME' } });
+                let refGroup = await tx.accountgroup.findFirst({ where: { companyId: parseInt(currentCompanyId), type: 'INCOME' } });
+                if (!refGroup) {
+                    refGroup = await tx.accountgroup.create({
+                        data: { name: 'Direct Income', type: 'INCOME', companyId: parseInt(currentCompanyId) }
+                    });
+                }
                 salesLedger = await tx.ledger.create({
                     data: {
                         name: 'Sales Income (POS)',
-                        groupId: refGroup ? refGroup.id : (await tx.accountgroup.create({ data: { name: 'Direct Income', type: 'INCOME', companyId: parseInt(currentCompanyId) } }).then(g => g.id)),
+                        groupId: refGroup.id,
                         companyId: parseInt(currentCompanyId)
                     }
                 });
@@ -76,12 +82,10 @@ const createPOSInvoice = async (req, res) => {
 
             // Debit Ledger (Who owes us? / Customer Receivable)
             let debitLedgerId = dueAccountId ? parseInt(dueAccountId) : null;
-            let customerLedgerId = null;
 
             if (!debitLedgerId && customerId) {
                 const customer = await tx.customer.findUnique({ where: { id: parseInt(customerId) } });
                 if (customer?.ledgerId) {
-                    customerLedgerId = customer.ledgerId;
                     debitLedgerId = customer.ledgerId;
                 }
             }
@@ -92,7 +96,12 @@ const createPOSInvoice = async (req, res) => {
                     where: { companyId: parseInt(currentCompanyId), name: { contains: 'Walk-in' } }
                 });
                 if (!walkinLedger) {
-                    const assetGroup = await tx.accountgroup.findFirst({ where: { companyId: parseInt(currentCompanyId), type: 'ASSETS' } });
+                    let assetGroup = await tx.accountgroup.findFirst({ where: { companyId: parseInt(currentCompanyId), type: 'ASSETS' } });
+                    if (!assetGroup) {
+                        assetGroup = await tx.accountgroup.create({
+                            data: { name: 'Current Assets', type: 'ASSETS', companyId: parseInt(currentCompanyId) }
+                        });
+                    }
                     walkinLedger = await tx.ledger.create({
                         data: { name: 'Walk-in Customer Ledger', groupId: assetGroup.id, companyId: parseInt(currentCompanyId) }
                     });
@@ -133,8 +142,15 @@ const createPOSInvoice = async (req, res) => {
 
             // D. Inventory Update
             for (const item of processedItems) {
+                const wId = parseInt(item.warehouseId);
+                const pId = parseInt(item.productId);
+
+                if (isNaN(wId) || isNaN(pId)) {
+                    throw new Error(`Invalid warehouseId (${item.warehouseId}) or productId (${item.productId}) for item ${item.description || 'unknown'}`);
+                }
+
                 const stock = await tx.stock.findUnique({
-                    where: { warehouseId_productId: { warehouseId: parseInt(item.warehouseId), productId: parseInt(item.productId) } }
+                    where: { warehouseId_productId: { warehouseId: wId, productId: pId } }
                 });
 
                 if (stock) {
@@ -145,8 +161,8 @@ const createPOSInvoice = async (req, res) => {
                 } else {
                     await tx.stock.create({
                         data: {
-                            warehouseId: parseInt(item.warehouseId),
-                            productId: parseInt(item.productId),
+                            warehouseId: wId,
+                            productId: pId,
                             quantity: -item.qty,
                             updatedAt: new Date()
                         }
@@ -157,8 +173,8 @@ const createPOSInvoice = async (req, res) => {
                     data: {
                         date: new Date(),
                         type: 'SALE',
-                        productId: parseInt(item.productId),
-                        fromWarehouseId: parseInt(item.warehouseId),
+                        productId: pId,
+                        fromWarehouseId: wId,
                         quantity: item.qty,
                         reason: `POS Sale: ${invoiceNumber}`,
                         companyId: parseInt(currentCompanyId),
@@ -227,6 +243,9 @@ const createPOSInvoice = async (req, res) => {
             }
 
             return posInvoice;
+        }, {
+            maxWait: 5000, // Maximum time for the transaction manager to wait for a connection
+            timeout: 30000 // Total time the transaction can take (30 seconds)
         });
 
         res.status(201).json({ success: true, data: result });
@@ -245,7 +264,7 @@ const getPOSInvoices = async (req, res) => {
             where: { companyId: parseInt(companyId) },
             include: {
                 customer: true,
-                posinvoiceitem: { include: { product: true } }
+                posinvoiceitem: { include: { product: true, warehouse: true } }
             },
             orderBy: { createdAt: 'desc' }
         });
@@ -343,9 +362,31 @@ const deletePOSInvoice = async (req, res) => {
 
             // 3. Delete Invoice
             await tx.posinvoice.delete({ where: { id: parseInt(id) } });
+        }, {
+            maxWait: 5000,
+            timeout: 30000
         });
 
         res.status(200).json({ success: true, message: 'POS Invoice deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+const getPublicPOSInvoiceById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const invoice = await prisma.posinvoice.findUnique({
+            where: { id: parseInt(id) },
+            include: {
+                customer: true,
+                posinvoiceitem: { include: { product: true, warehouse: true } },
+                company: true
+            }
+        });
+
+        if (!invoice) return res.status(404).json({ success: false, message: 'POS Invoice not found' });
+        res.status(200).json({ success: true, data: invoice });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -355,5 +396,6 @@ module.exports = {
     createPOSInvoice,
     getPOSInvoices,
     getPOSInvoiceById,
-    deletePOSInvoice
+    deletePOSInvoice,
+    getPublicPOSInvoiceById
 };
